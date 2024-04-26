@@ -1,0 +1,5 @@
+.history
+swimming-squid-battle
+*.pickle
+__pycache__
+mp.py
