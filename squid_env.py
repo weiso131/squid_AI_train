@@ -49,16 +49,18 @@ class trainSquid():
 
         
         
+        #print(f"x:{rawObs1P['self_x']}, y:{rawObs1P['self_y']}")
 
-
-        #print(rawObs1P["self_x"], rawObs1P["self_y"])
+        
 
         obs1P = self.foodWay(rawObs1P)  #[xDistance, yDistance, rawObs1P["self_lv"] - rawObs1P["opponent_lv"] + 5]
-        foodscore = self.foodScore(rawObs1P, atte=0.1)
-        obs1P.extend(self.foodScore(rawObs1P, atte=0.1))
-        #print(f"左上:{foodscore[0]}, 右上:{foodscore[1]}, 左下: {foodscore[2]}, 右下:{foodscore[3]}")
+        #print(f"左:{obs1P[4]}, 右:{obs1P[5]}, 上: {obs1P[6]}, 下:{obs1P[7]}")
+        score = self.foodScore(rawObs1P)
+        #print(f"player:{score[0]}, rank1:{score[1]}, rank2:{score[2]}")
+        obs1P.extend(self.foodScore(rawObs1P))
+        
         obs2P = self.foodWay(rawObs2P) # [xDistance, yDistance, rawObs2P["self_lv"] - rawObs2P["opponent_lv"] + 5]
-        obs2P.extend(self.foodScore(rawObs2P, atte=0.1))
+        obs2P.extend(self.foodScore(rawObs2P))
 
         obs = (tuple(obs1P), tuple(obs2P))
         terminated = not (self.env.is_running and not quit_or_esc())
@@ -95,57 +97,54 @@ class trainSquid():
             "y": oppo_y   
         })
 
-
-
-
         return food
 
     
-    def foodScore(self, obs, atte=0.1):
+    def foodScore(self, obs):
         """
-        決定四個方向食物的分數
-        atte決定衰減速率，越大越快(1/(x^atte))
-        """
-        scorePotential = [0.0, 0.0, 0.0, 0.0]
         
-        foods = self.isOpponentYourFood(obs)
-        playerX = obs["self_x"]
-        playerY = obs["self_y"]
-        playerW = obs["self_w"]
-        playerH = obs["self_h"]
+        食物的分區，分成10區
+        第一個是魷魚的位置
+        後面兩個是前兩高的區域
+        """
+        scoreRegion = list(np.zeros(10))
+        
+        foods = obs["foods"]
         
         for f in foods:
             
             score = f["score"]
             if (score < 0):
                 continue
-            h, w, x, y = f["h"], f["w"], f["x"], f["y"]
-            xDis = abs(x - playerX) - w/2 - playerW/2
-            yDis = abs(y - playerY) - h/2 - playerH/2
-            scorePotential[0 + int(x > playerX)] += score / (max(1, (xDis + yDis))) ** atte
-            scorePotential[2 + int(y > playerY)] += score / (max(1, (xDis + yDis))) ** atte
             
+            scoreRegion[min(9, int(max(0, f["y"]) * (10 / 600)))] += score
+        data = [min(9, int(max(0, obs["self_y"]) * (10 / 600)))]
         
-        return self.foodWay_discrete(scorePotential)
+        data.extend(np.argsort(scoreRegion)[-2:])
+        
+        
+        return data
 
-    def foodScoreDiscrete(self, foodScore):
-        #0 ~ 10, 切20份
-        discreteScore = []
-
-        for s in foodScore:
-            score = min(19, int(2 * max(0, s)))
-            discreteScore.append(score)
-        return discreteScore
+    
 
 
     def foodWay(self, obs):
+
+        """
+        檢查魷魚上下左右食物的存在情況
+        以及
+        \\上下左右是否快撞到垃圾
+        """
         scorePotential = [0.0, 0.0, 0.0, 0.0]
-        foods = self.isOpponentYourFood(obs)
+        garbageWay = [0, 0, 0, 0]
+        #foods = self.isOpponentYourFood(obs)
+        foods = obs["foods"]
         playerX = obs["self_x"]
         playerY = obs["self_y"]
         playerW = obs["self_w"]
         playerH = obs["self_h"]
 
+        
         
         for f in foods:
             
@@ -153,14 +152,32 @@ class trainSquid():
             h, w, x, y = f["h"], f["w"], f["x"], f["y"]
             xDis = abs(x - playerX) - w/2 - playerW/2
             yDis = abs(y - playerY) - h/2 - playerH/2
+            speed = self.speed[obs["self_lv"]]
+            if (score < 0):
+                if (xDis < 0 and yDis <= self.speed[obs["self_lv"]]):
+                    garbageWay[2 + int(y > playerY)] = 1
+                if (yDis < 0 and xDis <= self.speed[obs["self_lv"]]):
+                    garbageWay[0 + int(x > playerX)] = 1
+            
+            if (xDis < speed):
+                scorePotential[2 + int(y > playerY)] += score / max(1, abs(y - playerY - speed)) ** 2
+            if (yDis < speed):
+                scorePotential[0 + int(x > playerX)] += score / max(1, abs(x - playerX - speed)) ** 2
 
-            if (xDis < 0):
-                scorePotential[2 + int(y > playerY)] += score / max(1, abs(y - playerY) ** 2)
-            if (yDis < 0):
-                scorePotential[0 + int(x > playerX)] += score / max(1, abs(x - playerX) ** 2)
-        return self.foodWay_discrete(scorePotential)
+        data = self.Rankdiscrete(scorePotential)
+        #data.extend(garbageWay)
+        return data
     
-    def foodWay_discrete(self, foodWay):
+
+    def blockSpiltDiscrete(self, originData, spiltNum, maxValue, minValue):
+        
+        discreteScore = []
+
+        for s in originData:
+            score = int(min(maxValue, max(minValue, s)) * (spiltNum / abs(maxValue - minValue + 1)))
+            discreteScore.append(score)
+        return discreteScore
+    def Rankdiscrete(self, foodWay):
         discreteState = []
         for i in range(4):
             discreteState.append(0)

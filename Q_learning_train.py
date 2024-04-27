@@ -19,8 +19,8 @@ class QLearningTraining:
         self.gamma = gamma
         self.rewards_per_episode = []
 
-        self.Lambda_lr = lambda i: max(0.01, min(1, 1.0 - math.log10((i+1)/50)))
-        self.Lambda_epsilon = lambda i: max(0.01, min(0.99, 1.0 - math.log10((i+1)/50)))
+        self.Lambda_lr = lambda i: max(0.01, min(1, 1.0 - math.log10((i+1)/500)))
+        self.Lambda_epsilon = lambda i: max(0.01, min(0.99, 1.0 - math.log10((i+1)/500)))
 
         self.reward_history = []
 
@@ -35,10 +35,10 @@ class QLearningTraining:
 
             
             while True:
-                
+                #self.env.render()
                 state1, state2 = tuple(state[0]), tuple(state[1])
                 action1 = self.agent.step(state1, epsilon)
-                action2 = self.agent.step(state2, 0.5)
+                action2 = self.agent.step(state2, min(1, 2 * epsilon))
                 next_state, reward, terminated, truncated, _ = self.env.step({"1P" : [action1],  "2P" : [action2]})
                 
                 total_rewards += reward[0]

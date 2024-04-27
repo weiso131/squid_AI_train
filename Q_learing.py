@@ -11,7 +11,6 @@ class Q_learning():
             self.actionIndex[actionSpace[i]] = i
 
     def step(self, state : tuple, Lambda=0):
-        #print(state, self.discrete(state))
         if (np.random.rand() > Lambda):
             return self.actionSpace[np.argmax(self.Q_form[state])]
         else:
