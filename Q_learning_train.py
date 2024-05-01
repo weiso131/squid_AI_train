@@ -1,6 +1,6 @@
 import numpy as np
 import pygame
-from squid_env import trainSquid, opponent
+from squid_env import trainSquid, opponent, opponentExtra
 
 import time
 import math
@@ -9,36 +9,44 @@ from matplotlib import pyplot as plt
 
 from Q_learing import Q_learning
 class QLearningTraining:
-    def __init__(self, agent, env, episodes,
+    def __init__(self, agent, env,
                  initial_lr=1.0, min_lr=0.01, gamma=0.99):
         self.agent = agent
         self.env = env
-        self.episodes = episodes
         self.initial_lr = initial_lr
         self.min_lr = min_lr
         self.gamma = gamma
         self.rewards_per_episode = []
 
-        self.Lambda_lr = lambda i: max(0.01, min(1, 1.0 - math.log10((i+1)/500)))
-        self.Lambda_epsilon = lambda i: max(0.01, min(0.99, 1.0 - math.log10((i+1)/500)))
+        
 
         self.reward_history = []
 
-    def train(self):
-        for episode in range(self.episodes):
+    def train(self, episodes, useTeacher=False, lrDecrease=500, epsDecrease=500, minLr=0.01, minEps=0.01):
+        Lambda_lr = lambda i: max(minLr, min(1, 1.0 - math.log10((i+1)/lrDecrease)))
+        Lambda_epsilon = lambda i: max(minEps, min(0.99, 1.0 - math.log10((i+1)/epsDecrease)))
+        for episode in range(episodes):
             
             state, reward, terminated, truncated, _ = self.env.reset()
             total_rewards = 0
 
-            lr = self.Lambda_lr(episode) * self.initial_lr
-            epsilon = self.Lambda_epsilon(episode)
+            lr = Lambda_lr(episode) * self.initial_lr
+            epsilon = Lambda_epsilon(episode)
+            
 
+            
             
             while True:
                 #self.env.render()
                 state1, state2 = tuple(state[0]), tuple(state[1])
                 action1 = self.agent.step(state1, epsilon)
-                action2 = self.agent.step(state2, min(1, 2 * epsilon))
+                action2 = self.agent.step(state2, epsilon)
+
+                if (useTeacher):
+                    #action1 = opponentExtra(state1)
+                    action2 = opponentExtra(state2)
+                
+
                 next_state, reward, terminated, truncated, _ = self.env.step({"1P" : [action1],  "2P" : [action2]})
                 
                 total_rewards += reward[0]
