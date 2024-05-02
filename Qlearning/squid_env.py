@@ -5,6 +5,8 @@ sys.path.append("C:/Users/weiso131/Desktop/gameAI/squid/swimming-squid-battle")
 import pygame
 from mlgame.view.view import PygameView
 from mlgame.game.generic import quit_or_esc
+
+
 from src.game import SwimmingSquid
 
 FPS = 30
@@ -12,7 +14,6 @@ FPS = 30
 
 class trainSquid():
     def __init__(self, level=-1, FPS=300):
-        
         self.level = level
         self.FPS = FPS
         self.speed = [0, 23, 21, 18, 16, 12, 9]
@@ -61,14 +62,12 @@ class trainSquid():
         
 
         obs1P = self.foodPotential(rawObs1P)  #[xDistance, yDistance, rawObs1P["self_lv"] - rawObs1P["opponent_lv"] + 5]
-        
-        
         obs1P.extend(self.foodDirect(rawObs1P))
-        
+        obs1P.extend(self.OpponentState(rawObs1P))
         
         obs2P = self.foodPotential(rawObs2P) # [xDistance, yDistance, rawObs2P["self_lv"] - rawObs2P["opponent_lv"] + 5]
         obs2P.extend(self.foodDirect(rawObs2P))
-
+        obs2P.extend(self.OpponentState(rawObs2P))
 
         obs = (tuple(obs1P), tuple(obs2P), tuple(self.foodDirect(rawObs2P)))
         terminated = not (self.env.is_running and not quit_or_esc())
@@ -115,11 +114,6 @@ class trainSquid():
         return [self_lv - oppo_lv + 5, oppoXway + 2, oppoYway + 2]
 
     
-    
-
-    
-
-
     def foodPotential(self, obs):
 
         """
@@ -195,39 +189,7 @@ class trainSquid():
                     discreteState[j] += 1
 
         return discreteState
-    def blockSpiltDiscrete(self, originData, spiltNum, maxValue, minValue):
-        
-        discreteScore = []
-
-        for s in originData:
-            score = int(min(maxValue, max(minValue, s)) * (spiltNum / abs(maxValue - minValue + 1))) - minValue
-            discreteScore.append(score)
-        return discreteScore
     
-    def foodScore(self, obs):
-        """
-        
-        食物的分區，分成10區
-        第一個是魷魚的位置
-        後面兩個是前兩高的區域
-        """
-        scoreRegion = list(np.zeros(10))
-        
-        foods = obs["foods"]
-        
-        for f in foods:
-            
-            score = f["score"]
-            if (score < 0):
-                continue
-            
-            scoreRegion[min(9, int(max(0, f["y"]) * (10 / 600)))] += score
-        data = [min(9, int(max(0, obs["self_y"]) * (10 / 600)))]
-        
-        data.extend(np.argsort(scoreRegion)[-2:])
-        
-        
-        return data
     def render(self):
         pygame.time.Clock().tick_busy_loop(FPS)
         try: 
@@ -245,7 +207,7 @@ def opponentExtra(obs):
 
 def opponentExtraReward(obs):
     foodPotential = obs[:4]
-    foodDirect = obs[4:]
+    foodDirect = obs[4:8]
     ispositive = False
 
     for i in foodDirect:

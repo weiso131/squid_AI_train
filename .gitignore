@@ -1,5 +1,6 @@
 .history
 swimming-squid-battle
 *.pickle
+*.pth
 __pycache__
 mp.py
